@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>QM · Etsy Bağlantı</title>
+<style>
+  :root{--red:#e23b4e;--ink:#0e1726;--muted:#51607a;--line:#e4e8f0;--bg:#f6f8fc}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;max-width:440px;
+    width:100%;padding:34px 30px;box-shadow:0 8px 30px rgba(14,23,38,.06);text-align:center}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--red);
+    box-shadow:0 0 0 5px rgba(226,59,78,.12);display:inline-block;margin-bottom:16px}
+  h1{font-size:20px;font-weight:700;color:var(--red);letter-spacing:.02em;margin-bottom:6px}
+  p{font-size:14px;color:var(--muted);line-height:1.5;margin-bottom:22px}
+  button{font-size:14px;font-weight:700;letter-spacing:.03em;padding:12px 22px;border-radius:10px;
+    border:2px solid var(--red);background:var(--red);color:#fff;cursor:pointer;transition:.15s}
+  button:hover{background:#c4283a;border-color:#c4283a}
+  button:disabled{opacity:.5;cursor:default}
+  .status{margin-top:18px;font-size:13px;min-height:18px}
+  .ok{color:#0f9d63}.err{color:var(--red)}
+  pre{margin-top:16px;text-align:left;font-size:11px;background:#eef1f7;padding:12px;
+    border-radius:8px;overflow:auto;max-height:220px}
+  .mini{margin-top:20px;font-size:11px;color:#8a97ad}
+  .mini a{color:var(--red)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="dot"></span>
+    <h1>QM · ETSY BAĞLANTI</h1>
+    <p>Etsy mağazanı bağlamak için aşağıdaki butona bas. Etsy'de onay verdikten sonra
+       verilerin QM paneline akmaya başlar.</p>
+    <button id="connect">Etsy'ye Bağlan</button>
+    <div class="status" id="status"></div>
+    <pre id="out" style="display:none"></pre>
+    <div class="mini">Panelin: <a href="https://ejderusa-sketch.github.io/qm-panel/">qm-panel</a></div>
+  </div>
+
+<script>
+/* ===================== AYARLAR =====================
+   Etsy uygulaman ONAYLANINCA burayı dolduracağız:
+   - ETSY_KEYSTRING: yeni app'in keystring'i
+   - SB_ANON_KEY: Supabase projenin anon (public) key'i
+   REDIRECT_URI ve FN_URL zaten doğru ayarlı.
+=================================================== */
+const CFG = {
+  KEYSTRING: "BURAYA_YENI_ETSY_KEYSTRING",
+  REDIRECT_URI: "https://ejderusa-sketch.github.io/qm-etsy/",
+  FN_URL: "https://pepvzsffeyvzhxvlliex.supabase.co/functions/v1/etsy",
+  SB_ANON_KEY: "BURAYA_SUPABASE_ANON_KEY",
+  SCOPES: ["address_r","billing_r","cart_r","email_r","favorites_r","feedback_r",
+           "listings_r","profile_r","recommend_r","shops_r","transactions_r"].join(" "),
+  AUTH_URL: "https://www.etsy.com/oauth/connect",
+};
+
+const $ = id => document.getElementById(id);
+const setStatus = (msg,cls="") => { const s=$("status"); s.textContent=msg; s.className="status "+cls; };
+
+/* ---- PKCE ---- */
+const b64url = b => { let s=""; b.forEach(x=>s+=String.fromCharCode(x));
+  return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); };
+const rand = (n=64) => { const a=new Uint8Array(n); crypto.getRandomValues(a); return b64url(a); };
+const sha256 = async str => b64url(new Uint8Array(
+  await crypto.subtle.digest("SHA-256", new TextEncoder().encode(str))));
+
+/* ---- 1) Etsy'ye yönlendir ---- */
+async function connect(){
+  const verifier=rand(64), challenge=await sha256(verifier), state=rand(16);
+  sessionStorage.setItem("etsy_v",verifier);
+  sessionStorage.setItem("etsy_s",state);
+  const p=new URLSearchParams({
+    response_type:"code", client_id:CFG.KEYSTRING, redirect_uri:CFG.REDIRECT_URI,
+    scope:CFG.SCOPES, state, code_challenge:challenge, code_challenge_method:"S256"
+  });
+  location.href = CFG.AUTH_URL + "?" + p;
+}
+
+/* ---- Edge Function çağır ---- */
+async function fn(payload){
+  const r = await fetch(CFG.FN_URL, {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+CFG.SB_ANON_KEY },
+    body: JSON.stringify(payload),
+  });
+  return r.json();
+}
+
+/* ---- 2) Geri dönüşte code'u işle ---- */
+async function handleCallback(){
+  const u=new URL(location.href);
+  const code=u.searchParams.get("code"), st=u.searchParams.get("state");
+  if(u.searchParams.get("error")){ setStatus("Etsy: "+u.searchParams.get("error_description"),"err"); return; }
+  if(!code) return;
+  if(st!==sessionStorage.getItem("etsy_s")){ setStatus("Güvenlik hatası (state).","err"); return; }
+  setStatus("Bağlanıyor…");
+  const res=await fn({action:"exchange",code,code_verifier:sessionStorage.getItem("etsy_v")});
+  history.replaceState({},document.title,CFG.REDIRECT_URI);
+  if(res.ok){
+    localStorage.setItem("etsy_uid",res.etsy_user_id);
+    setStatus("✓ Etsy hesabı bağlandı! (#"+res.etsy_user_id+")","ok");
+  } else {
+    setStatus("Bağlantı hatası: "+(res.error||"bilinmeyen"),"err");
+    const o=$("out"); o.style.display="block"; o.textContent=JSON.stringify(res,null,2);
+  }
+}
+
+$("connect").addEventListener("click", connect);
+window.addEventListener("load", handleCallback);
+</script>
+</body>
+</html>
