@@ -73,7 +73,8 @@ async function connect(){
   sessionStorage.setItem("etsy_s",state);
   const p=new URLSearchParams({
     response_type:"code", client_id:CFG.KEYSTRING, redirect_uri:CFG.REDIRECT_URI,
-    scope:CFG.SCOPES, state, code_challenge:challenge, code_challenge_method:"S256"
+    scope:CFG.SCOPES, state, code_challenge:challenge, code_challenge_method:"S256",
+    resource:"https://api.etsy.com"
   });
   location.href = CFG.AUTH_URL + "?" + p;
 }
