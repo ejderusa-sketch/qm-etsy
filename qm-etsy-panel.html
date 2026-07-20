@@ -24,9 +24,9 @@ select{padding:8px 10px;border-radius:8px;border:1px solid var(--line);backgroun
 .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:120}
 .card .l{font-size:12px;color:var(--muted)}
 .card .v{font-size:22px;font-weight:800;margin-top:4px}
-.sh{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
-.sh .bar3{width:3px;height:15px;background:var(--orange);border-radius:2px}
-.sh .t{font-size:15px;font-weight:800}
+.sh{display:inline-flex;align-items:center;gap:10px;margin:18px 0 12px;padding:9px 18px;border:2px solid #2f6fed;border-radius:999px;background:#fff}
+.sh .num{display:inline-flex;align-items:center;justify-content:center;padding:3px 11px;border:2px solid var(--red);border-radius:999px;color:var(--red);font-weight:800;font-size:15px}
+.sh .t{font-size:17px;font-weight:800;color:#2f6fed}
 .tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);color:var(--muted);white-space:nowrap;position:sticky;top:0;background:#fff}
@@ -54,9 +54,9 @@ a{color:var(--red)}
     </div>
     <div id="err" class="err" style="display:none"></div>
     <div id="cards" class="cards"></div>
-    <div class="sh"><span class="bar3"></span><span class="t" id="ordTitle">📦 SON SİPARİŞLER</span></div>
+    <div class="sh"><span class="num">1</span><span class="t" id="ordTitle">SON SİPARİŞLER</span></div>
     <div class="tblwrap"><table id="ordTbl"></table></div>
-    <div class="sh"><span class="bar3"></span><span class="t">🏷️ AKTİF İLANLAR</span></div>
+    <div class="sh"><span class="num">2</span><span class="t">AKTİF İLANLAR</span></div>
     <div id="listings" class="grid"></div>
   </div>
 
@@ -67,7 +67,7 @@ a{color:var(--red)}
       <button class="btn" id="refreshApi" style="margin-left:auto">🔄 Yenile</button>
     </div>
     <div id="errApi" class="err" style="display:none"></div>
-    <div class="sh"><span class="bar3"></span><span class="t" id="apiTitle">BAĞLI MAĞAZALAR</span></div>
+    <div class="sh"><span class="num">1</span><span class="t" id="apiTitle">BAĞLI MAĞAZALAR</span></div>
     <div class="tblwrap"><table id="apiTbl"></table></div>
     <div class="muted" style="margin-top:16px;font-size:12.5px">Detaylı sipariş/ilan verileri için Z ETSY sekmesine bak.</div>
   </div>
@@ -142,7 +142,7 @@ function renderOrders(rec){
       "#"+r.receipt_id,(r.created_timestamp?new Date(r.created_timestamp*1000).toLocaleDateString("tr-TR"):"—"),(r.status||"—"),(r.name||"—"),(r.country_iso||"—"),(r.state||"—"),(r.city||"—"),(r.zip||"—"),([r.first_line,r.second_line].filter(Boolean).join(" ")||"—"),(t.sku||"—"),(t.title||"—"),(varOf(t,["size","style","beden"])||"—"),(varOf(t,["color","renk"])||"—"),(varOf(t,["personal","kişisel"])||"—"),(t.quantity!=null?t.quantity:"—"),money(t.price),money(r.subtotal),money(r.total_shipping_cost),money(r.total_tax_cost),money(r.discount_amt),money(r.grandtotal||r.total_price),(r.payment_method||"—"),(r.is_shipped?"Evet":"Hayır"),(r.is_paid?"Evet":"Hayır"),(sh0.carrier_name||"—"),(sh0.tracking_code||"—"),(r.message_from_buyer||"—"),(r.is_gift?"Evet":"Hayır")
     ]));
   });
-  $("ordTitle").textContent=`📦 SON SİPARİŞLER (${lines.length} satır)`;
+  $("ordTitle").textContent="SON SİPARİŞLER: "+lines.length;
   const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
   $("ordTbl").innerHTML="<thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>"+
     lines.map(row=>"<tr>"+row.map(v=>`<td title="${esc(v)}">${esc(v)}</td>`).join("")+"</tr>").join("")+"</tbody>";
@@ -158,7 +158,7 @@ async function loadApi(){
   $("errApi").style.display="none";$("refreshApi").disabled=true;$("refreshApi").textContent="Yükleniyor…";
   try{
     const list=await resolveStores();
-    $("apiTitle").textContent=`BAĞLI MAĞAZALAR (${list.length})`;
+    $("apiTitle").textContent="BAĞLI MAĞAZALAR: "+list.length;
     if(!list.length){$("apiTbl").innerHTML="<tbody><tr><td class='muted'>Bağlı mağaza yok. '+ Yeni mağaza bağla' ile başla.</td></tr></tbody>";}
     else{
       const cols=["Mağaza","Etsy ID","Durum","Toplam satış","Aktif ilan","Takipçi"];
