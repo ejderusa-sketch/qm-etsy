@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>QM · Etsy Panel</title>
+<style>
+:root{--red:#e23b4e;--orange:#e2731b;--ink:#0e1726;--muted:#51607a;--line:#e4e8f0;--line2:#d5dce8;--bg:#f6f8fc;--panel2:#eef1f7;--panel:#fff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);padding:20px}
+.wrap{max-width:1400px;margin:0 auto}
+.tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);margin-bottom:18px;flex-wrap:wrap}
+.tab{padding:10px 16px;border:1px solid transparent;border-bottom:none;border-radius:10px 10px 0 0;background:transparent;color:var(--muted);cursor:pointer;font-weight:700;font-size:14px}
+.tab.on{background:#fff;color:var(--ink);border-color:var(--line)}
+.tab .b{display:inline-flex;align-items:center;justify-content:center;min-width:20px;height:20px;border-radius:6px;border:2px solid var(--red);color:var(--red);font-size:12px;margin-right:6px;padding:0 4px}
+.bar{display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.title{font-size:18px;font-weight:800}
+select,button{font-family:inherit}
+select{padding:8px 10px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-weight:700}
+.btn{padding:8px 16px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);cursor:pointer;font-weight:700}
+.btn.primary{border:2px solid var(--orange);background:var(--orange);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:120}
+.card .l{font-size:12px;color:var(--muted)}
+.card .v{font-size:22px;font-weight:800;margin-top:4px}
+.sh{display:flex;align-items:center;gap:8px;margin:16px 0 10px}
+.sh .bar3{width:3px;height:15px;background:var(--orange);border-radius:2px}
+.sh .t{font-size:15px;font-weight:800}
+.tblwrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th{text-align:left;padding:8px 10px;border-bottom:2px solid var(--line);color:var(--muted);white-space:nowrap;position:sticky;top:0;background:#fff}
+td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.lc{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px}
+.err{color:var(--red);margin-bottom:12px}
+.ok{color:#0f9d63;font-weight:700}.bad{color:var(--red);font-weight:700}
+.muted{color:var(--muted)}
+a{color:var(--red)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab on" id="tab-data"><span class="b">★</span>Z ETSY</button>
+    <button class="tab" id="tab-api"><span class="b">2</span>📡 ETSY API</button>
+  </div>
+
+  <div id="view-data">
+    <div class="bar">
+      <span class="title">🛍️ Z ETSY</span>
+      <select id="store"></select>
+      <button class="btn" id="refresh" style="margin-left:auto">🔄 Yenile</button>
+    </div>
+    <div id="err" class="err" style="display:none"></div>
+    <div id="cards" class="cards"></div>
+    <div class="sh"><span class="bar3"></span><span class="t" id="ordTitle">📦 SON SİPARİŞLER</span></div>
+    <div class="tblwrap"><table id="ordTbl"></table></div>
+    <div class="sh"><span class="bar3"></span><span class="t">🏷️ AKTİF İLANLAR</span></div>
+    <div id="listings" class="grid"></div>
+  </div>
+
+  <div id="view-api" style="display:none">
+    <div class="bar">
+      <span class="title">📡 2 · ETSY API</span>
+      <button class="btn primary" id="connect">+ Yeni mağaza bağla</button>
+      <button class="btn" id="refreshApi" style="margin-left:auto">🔄 Yenile</button>
+    </div>
+    <div id="errApi" class="err" style="display:none"></div>
+    <div class="sh"><span class="bar3"></span><span class="t" id="apiTitle">BAĞLI MAĞAZALAR</span></div>
+    <div class="tblwrap"><table id="apiTbl"></table></div>
+    <div class="muted" style="margin-top:16px;font-size:12.5px">Detaylı sipariş/ilan verileri için Z ETSY sekmesine bak.</div>
+  </div>
+</div>
+
+<script>
+const FN="https://pepvzsffeyvzhxvlliex.supabase.co/functions/v1/etsy";
+const KEY="sb_publishable_y9y0jhTqXFogfD_9Wc1viA_Wu-J0Q_-";
+const CONNECT="https://ejderusa-sketch.github.io/qm-etsy/index.html";
+const $=id=>document.getElementById(id);
+const call=b=>fetch(FN,{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+KEY},body:JSON.stringify(b)}).then(r=>r.json());
+const proxy=(uid,path,query)=>call({action:"proxy",etsy_user_id:uid,path,query});
+const money=m=>m?((m.amount/m.divisor).toFixed(2)+" "+m.currency_code):"—";
+const varOf=(t,names)=>{const vs=(t&&t.variations)||[];for(const v of vs){const n=(v.formatted_name||"").toLowerCase();for(const k of names)if(n.includes(k))return v.formatted_value||"";}return "";};
+let STORES=[];
+
+/* tab switching */
+$("tab-data").onclick=()=>{$("tab-data").classList.add("on");$("tab-api").classList.remove("on");$("view-data").style.display="";$("view-api").style.display="none";};
+$("tab-api").onclick=()=>{$("tab-api").classList.add("on");$("tab-data").classList.remove("on");$("view-api").style.display="";$("view-data").style.display="none";loadApi();};
+$("connect").onclick=()=>window.open(CONNECT,"_blank");
+$("refresh").onclick=()=>{const s=$("store").value;if(s)loadData(s);};
+$("refreshApi").onclick=loadApi;
+
+/* resolve connected stores (shared) */
+async function resolveStores(){
+  const r=await call({action:"list"});
+  const arr=(r&&r.stores)||[];
+  const list=await Promise.all(arr.map(async s=>{
+    try{const sh=await proxy(s.etsy_user_id,"/v3/application/users/"+s.etsy_user_id+"/shops");
+      const shp=sh&&sh.data&&(sh.data.shop_id?sh.data:(sh.data.results&&sh.data.results[0]));
+      return {uid:s.etsy_user_id,exp:s.expires_at,shop_id:shp&&shp.shop_id,name:(shp&&shp.shop_name)||("#"+s.etsy_user_id),_shop:shp};
+    }catch(e){return {uid:s.etsy_user_id,exp:s.expires_at,name:"#"+s.etsy_user_id};}
+  }));
+  STORES=list;return list;
+}
+
+/* Z ETSY data */
+async function initData(){
+  try{
+    const list=await resolveStores();
+    if(!list.length){$("err").style.display="";$("err").textContent="Bağlı mağaza yok. ETSY API sekmesinden bağla.";return;}
+    $("store").innerHTML=list.map(s=>`<option value="${s.uid}">${s.name} (#${s.uid})</option>`).join("");
+    loadData(list[0].uid);
+  }catch(e){$("err").style.display="";$("err").textContent="Hata: "+(e.message||e);}
+}
+async function loadData(uid){
+  const st=STORES.find(x=>x.uid===uid);if(!st||!st.shop_id)return;
+  $("err").style.display="none";$("refresh").disabled=true;$("refresh").textContent="Yükleniyor…";
+  try{
+    const [rc,li]=await Promise.all([
+      proxy(uid,"/v3/application/shops/"+st.shop_id+"/receipts",{limit:50}),
+      proxy(uid,"/v3/application/shops/"+st.shop_id+"/listings/active",{limit:24})
+    ]);
+    renderCards(st._shop,rc.data,li.data);
+    renderOrders(rc.data);
+    renderListings(li.data);
+  }catch(e){$("err").style.display="";$("err").textContent="Hata: "+(e.message||e);}
+  $("refresh").disabled=false;$("refresh").textContent="🔄 Yenile";
+}
+function renderCards(shop,rec,lst){
+  const items=(lst&&lst.results)||[];
+  const c=[["Mağaza",shop?shop.shop_name:"—"],["Toplam satış",shop&&shop.transaction_sold_count!=null?shop.transaction_sold_count:"—"],["Aktif ilan",shop&&shop.listing_active_count!=null?shop.listing_active_count:items.length],["Sipariş",rec&&rec.count!=null?rec.count:"—"],["Takipçi",shop&&shop.num_favorers!=null?shop.num_favorers:"—"]];
+  $("cards").innerHTML=c.map(x=>`<div class="card"><div class="l">${x[0]}</div><div class="v">${x[1]}</div></div>`).join("");
+}
+function renderOrders(rec){
+  const cols=["Sipariş","Tarih","Durum","Alıcı","Ülke","Eyalet","Şehir","Posta Kodu","Adres","SKU","Ürün","Beden","Renk","Kişiselleştirme","Adet","Birim Fiyat","Ara Toplam","Kargo Ücreti","Vergi","İndirim","Genel Toplam","Ödeme","Kargolandı","Ödendi","Kargo Firması","Takip No","Alıcı Mesajı","Hediye"];
+  const lines=[];
+  ((rec&&rec.results)||[]).forEach(r=>{
+    const sh0=(r.shipments&&r.shipments[0])||{};
+    const txs=(r.transactions&&r.transactions.length)?r.transactions:[{}];
+    txs.forEach(t=>lines.push([
+      "#"+r.receipt_id,(r.created_timestamp?new Date(r.created_timestamp*1000).toLocaleDateString("tr-TR"):"—"),(r.status||"—"),(r.name||"—"),(r.country_iso||"—"),(r.state||"—"),(r.city||"—"),(r.zip||"—"),([r.first_line,r.second_line].filter(Boolean).join(" ")||"—"),(t.sku||"—"),(t.title||"—"),(varOf(t,["size","style","beden"])||"—"),(varOf(t,["color","renk"])||"—"),(varOf(t,["personal","kişisel"])||"—"),(t.quantity!=null?t.quantity:"—"),money(t.price),money(r.subtotal),money(r.total_shipping_cost),money(r.total_tax_cost),money(r.discount_amt),money(r.grandtotal||r.total_price),(r.payment_method||"—"),(r.is_shipped?"Evet":"Hayır"),(r.is_paid?"Evet":"Hayır"),(sh0.carrier_name||"—"),(sh0.tracking_code||"—"),(r.message_from_buyer||"—"),(r.is_gift?"Evet":"Hayır")
+    ]));
+  });
+  $("ordTitle").textContent=`📦 SON SİPARİŞLER (${lines.length} satır)`;
+  const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  $("ordTbl").innerHTML="<thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>"+
+    lines.map(row=>"<tr>"+row.map(v=>`<td title="${esc(v)}">${esc(v)}</td>`).join("")+"</tr>").join("")+"</tbody>";
+}
+function renderListings(lst){
+  const items=(lst&&lst.results)||[];
+  const esc=s=>String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;");
+  $("listings").innerHTML=items.map(it=>`<div class="lc"><div style="font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(it.title||("#"+it.listing_id))}</div><div class="muted" style="margin-top:4px">${money(it.price)}</div><div class="muted" style="margin-top:2px">SKU: ${esc((it.skus&&it.skus[0])||"—")}</div><div class="muted" style="margin-top:2px">Stok: ${it.quantity!=null?it.quantity:"—"}</div></div>`).join("");
+}
+
+/* ETSY API tab */
+async function loadApi(){
+  $("errApi").style.display="none";$("refreshApi").disabled=true;$("refreshApi").textContent="Yükleniyor…";
+  try{
+    const list=await resolveStores();
+    $("apiTitle").textContent=`BAĞLI MAĞAZALAR (${list.length})`;
+    if(!list.length){$("apiTbl").innerHTML="<tbody><tr><td class='muted'>Bağlı mağaza yok. '+ Yeni mağaza bağla' ile başla.</td></tr></tbody>";}
+    else{
+      const cols=["Mağaza","Etsy ID","Durum","Toplam satış","Aktif ilan","Takipçi"];
+      $("apiTbl").innerHTML="<thead><tr>"+cols.map(c=>`<th>${c}</th>`).join("")+"</tr></thead><tbody>"+
+        list.map(s=>{const ok=s.exp&&(new Date(s.exp)>new Date());const shp=s._shop||{};
+          return `<tr><td>${s.name}</td><td>#${s.uid}</td><td class="${ok?'ok':'bad'}">${ok?'Bağlı ✓':'Token yenilenecek'}</td><td>${shp.transaction_sold_count!=null?shp.transaction_sold_count:"—"}</td><td>${shp.listing_active_count!=null?shp.listing_active_count:"—"}</td><td>${shp.num_favorers!=null?shp.num_favorers:"—"}</td></tr>`;
+        }).join("")+"</tbody>";
+    }
+  }catch(e){$("errApi").style.display="";$("errApi").textContent="Hata: "+(e.message||e);}
+  $("refreshApi").disabled=false;$("refreshApi").textContent="🔄 Yenile";
+}
+
+initData();
+</script>
+</body>
+</html>
